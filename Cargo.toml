@@ -1,0 +1,6 @@
+[package]
+name = "conway_s_game_of_life"
+version = "0.1.0"
+authors = ["Jonir Rings <peterpuyi@live.cn>"]
+
+[dependencies]
