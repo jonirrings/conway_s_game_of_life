@@ -20,7 +20,7 @@ pub fn load_config(path: &String) -> Option<Board> {
         match line_result {
             Ok(line) => match idx {
                 0 => {
-                    let re = Regex::new(r"^Generation \d+$").unwrap();
+                    let re = Regex::new(r"^Generation \d+:$").unwrap();
                     let caps_option = re.captures(line.as_str());
                     match caps_option {
                         Some(caps) => {
