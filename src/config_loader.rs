@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use regex::Regex;
 
-use Board;
+use board::Board;
 
 pub fn load_config(path: &String) -> Option<Board> {
     let file = match File::open(path) {
@@ -78,4 +78,14 @@ pub fn load_config(path: &String) -> Option<Board> {
     }
     let board = Board::new(rows, cols, cells, gen);
     Some(board)
+}
+
+// todo: add unit tests
+
+#[cfg(test)]
+mod tests{
+    #[test]
+    fn config_load() {
+        assert_eq!(4, 2 + 2);
+    }
 }
