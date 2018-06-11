@@ -1,5 +1,8 @@
 #[macro_use]
 extern crate ndarray;
+extern crate regex;
+
+pub mod config_loader;
 
 use std::fmt::{self, Display, Formatter};
 

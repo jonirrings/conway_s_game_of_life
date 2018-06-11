@@ -8,7 +8,7 @@ regex = "1.0.0"
 ndarray = "0.11.2"
 
 [lib]
-name = "conway_s_board"
+name = "board"
 path = "src/lib.rs"
 crate-type = ["lib"]
 
