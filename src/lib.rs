@@ -1,144 +1,87 @@
-use std::fmt::{self, Formatter, Display};
-use std::fmt::Write;
+#[macro_use]
+extern crate ndarray;
 
-pub enum CellState {
-    Alive,
-    Dead,
-}
+use std::fmt::{self, Display, Formatter};
 
-pub struct Cell {
-    pub state: CellState,
-}
+use ndarray::Array;
+use ndarray::Array2;
 
-pub struct InitialBoard {
+type Grid = Array2<u8>;
+
+pub struct Board {
     generation: usize,
-    max_life: usize,
     rows: usize,
     cols: usize,
-    grid: Vec<Cell>,
+    grid: Grid,
+    scratch: Grid,
 }
 
-struct Board {
-    generation: usize,
-    max_life: usize,
-    rows: usize,
-    cols: usize,
-    grid: Vec<Cell>,
-}
-
-impl InitialBoard {
-    pub fn new(rows: usize, cols: usize, cells: Vec<Cell>, generation: usize, max_life: usize) -> Board {
-        let capacity = rows * cols;
-        let mut grid = Vec::with_capacity(capacity);
-        for cell in cells {
-            grid.push(cell);
-            if grid.len() == capacity {
-                break;
-            }
-        };
-        while grid.len() < capacity {
-            grid.push(Cell { state: CellState::Dead });
-        }
+impl Board {
+    pub fn new(rows: usize, cols: usize, cells: Vec<u8>, generation: usize) -> Board {
+        // make a border of dead cells, 0 as dead, 1 as alive
+        let mut grid = Grid::from_elem(((rows + 2), (cols + 2)), 0);
+        let scratch = Grid::zeros((rows, cols));
+        let a = Array::from_vec(cells).into_shape((rows, cols)).unwrap();
+        grid.slice_mut(s![1..-1, 1..-1]).assign(&a);
         Board {
             generation,
-            max_life,
             rows,
             cols,
             grid,
+            scratch,
         }
     }
-    fn get_cell(&self, x: usize, y: usize) -> Cell {
-        self.grid.get(x + y * self.cols)
-    }
-    fn get_cell_neighbors(&self, x: usize, y: usize) -> Vec<Cell> {
-        let mut cells = Vec::with_capacity(8);
-        let range_x =
-            if x == 0 {
-                vec![x, x + 1]
-            } else if x == self.cols - 1 {
-                vec![x - 1, x + 1]
-            } else {
-                vec![x - 1, x, x + 1]
-            };
-        let range_y =
-            if x == 0 {
-                vec![x, x + 1]
-            } else if x == self.rows - 1 {
-                vec![x - 1, x + 1]
-            } else {
-                vec![x - 1, x, x + 1]
-            };
-        let range_cor = Vec::with_capacity(8);
-        for p_x in range_x {
-            for p_y in range_y {
-                if p_x != x && p_y != y {
-                    cells.push(self.get_cell(p_x, p_y));
-                }
-            }
-        }
-        cells
-    }
-}
+    pub fn iterate(&mut self) {
+        let ref mut grid = self.grid;
+        let ref mut scratch = self.scratch;
+        let mut neigh = scratch.view_mut();
 
-impl Iterator for InitialBoard {
-    type Item = Board;
-    fn next(&mut self) -> Option<Board> {
-        if self.generation >= self.max_life {
-            return None;
-        }
-        let capacity = self.rows * self.cols;
-        let mut grid = Vec::with_capacity(capacity);
-        for x in 0..self.cols {
-            for y in 0..self.rows {
-                let cell = self.get_cell(x, y);
-                let neighbors = self.get_cell_neighbors(x, y);
-                let alive_neighbor_count = neighbors.iter()
-                    .filter(|c| {
-                        c.state == CellState::Alive
-                    })
-                    .collect::<Vec<Cell>>()
-                    .len();
-                let new_cell = match cell.state {
-                    CellState::Alive => {
-                        match alive_neighbor_count {
-                            2 | 3 => Cell { state: CellState::Alive },
-                            _ => Cell { state: CellState::Dead }
-                        }
-                    }
-                    CellState::Dead => {
-                        match alive_neighbor_count {
-                            3 => Cell { state: CellState::Alive },
-                            _ => Cell { state: CellState::Dead }
-                        }
-                    }
-                };
-                grid.push(new_cell);
+        neigh.fill(0);
+        // take eight directions as views,
+        // add up all views in a scratch board,
+        // then the value in every scratch board slot is the number of its alive neighbors
+        neigh += &grid.slice(s![0..-2, 0..-2]); // north west
+        neigh += &grid.slice(s![0..-2, 1..-1]); // west
+        neigh += &grid.slice(s![0..-2, 2..]); // south west
+
+        neigh += &grid.slice(s![1..-1, 0..-2]); // north
+        neigh += &grid.slice(s![1..-1, 2..]); // south
+
+        neigh += &grid.slice(s![2.., 0..-2]); // north east
+        neigh += &grid.slice(s![2.., 1..-1]); // east
+        neigh += &grid.slice(s![2.., 2..]); // south east
+
+        let mut grid_view = grid.slice_mut(s![1..-1, 1..-1]); // central grid view
+
+        // 2 or 3 neighbors: stay alive
+        // 3 neighbors: birth
+        // otherwise: death
+        grid_view.zip_mut_with(&neigh, |y: &mut u8, &n: &u8| {
+            *y = match (*y, n) {
+                (_, 3) | (1, 2) => 1,
+                (_, _) => 0,
             }
-        }
-        self.grid = grid;
-        self.generation += 1;
-        return Some(self.clone());
+        });
     }
 }
 
 impl Display for Board {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "Generation {}:", self.generation);
-        writeln!(f, "{} {}", self.rows, self.cols);
-        for x in 0..self.cols {
-            for y in 0..self.rows {
-                let Cell { state } = self.get_cell(x, y);
-                match state {
-                    CellState::Alive => f.write_char('*'),
-                    CellState::Dead => f.write_char('.'),
-                };
+        let ref grid = self.grid;
+        writeln!(f, "Generation {}:", self.generation)?;
+        writeln!(f, "{} {}", self.rows, self.cols)?;
+        for row in grid.genrows() {
+            for &alive in row {
+                if alive > 0 {
+                    f.write_str("*")?;
+                } else {
+                    f.write_str(".")?;
+                }
             }
-            f.write_char('\n');
+            f.write_str("\n")?;
         }
         Ok(())
     }
 }
 
-// todo: solve the type error
-// todo: refactor for better organization
 // todo: add unit tests

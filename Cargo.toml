@@ -10,7 +10,7 @@ ndarray = "0.11.2"
 [lib]
 name = "conway_s_board"
 path = "src/lib.rs"
-crate-type = ["dylib"]
+crate-type = ["lib"]
 
 [[bin]]
 name = "conway_s_game"
