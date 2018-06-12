@@ -59,6 +59,7 @@ impl Board {
                 (_, _) => 0,
             }
         });
+        self.generation += 1;
     }
 }
 
